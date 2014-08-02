@@ -5,40 +5,29 @@ module Devise
       extend ActiveSupport::Concern
 
       included do
-        cattr_accessor :otp_column_name
-        self.otp_column_name = "otp_secret_key"
-
-        before_create :populate_otp_column
+        before_create :populate_otp_secret_key
       end
 
       def self.required_fields(klass)
-        required_methods = [:phone_number, :confirmation_token, :confirmed_at, :confirmation_sent_at]
+        required_methods = [:phone_number, :confirmation_token, :confirmed_at, :confirmation_sent_at, :otp_secret_key, :second_factor_attempts_count]
         required_methods << :unconfirmed_phone_number if klass.reconfirmable
         required_methods
       end
 
       def authenticate_otp(code, options = {})
-        totp = ROTP::TOTP.new(self.otp_column)
+        totp = ROTP::TOTP.new(self.otp_secret_key)
         drift = options[:drift] || self.class.allowed_otp_drift_seconds
 
         totp.verify_with_drift(code, drift)
       end
 
       def otp_code(time = Time.now)
-        ROTP::TOTP.new(self.otp_column).at(time, true)
+        ROTP::TOTP.new(self.otp_secret_key).at(time, true)
       end
 
       def provisioning_uri(account = nil, options = {})
         account ||= self.email if self.respond_to?(:email)
-        ROTP::TOTP.new(self.otp_column, options).provisioning_uri(account)
-      end
-
-      def otp_column
-        self.send(self.class.otp_column_name)
-      end
-
-      def otp_column=(attr)
-        self.send("#{self.class.otp_column_name}=", attr)
+        ROTP::TOTP.new(self.otp_secret_key, options).provisioning_uri(account)
       end
 
       def need_two_factor_authentication?(request)
@@ -57,8 +46,8 @@ module Devise
         self.class.max_login_attempts
       end
 
-      def populate_otp_column
-        self.otp_column = ROTP::Base32.random_base32
+      def populate_otp_secret_key
+        self.otp_secret_key = ROTP::Base32.random_base32
       end
     end
   end
