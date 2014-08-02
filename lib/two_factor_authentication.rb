@@ -13,6 +13,9 @@ module Devise
 
   mattr_accessor :allowed_otp_drift_seconds
   @@allowed_otp_drift_seconds = 30
+
+  mattr_accesor :authenticate_on_login?
+  @@authenticate_on_login? = true
 end
 
 module TwoFactorAuthentication
