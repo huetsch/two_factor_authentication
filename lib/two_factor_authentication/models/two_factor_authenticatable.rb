@@ -11,6 +11,12 @@ module Devise
         before_create :populate_otp_column
       end
 
+      def self.required_fields(klass)
+        required_methods = [:phone_number, :confirmation_token, :confirmed_at, :confirmation_sent_at]
+        required_methods << :unconfirmed_phone_number if klass.reconfirmable
+        required_methods
+      end
+
       def authenticate_otp(code, options = {})
         totp = ROTP::TOTP.new(self.otp_column)
         drift = options[:drift] || self.class.allowed_otp_drift_seconds
