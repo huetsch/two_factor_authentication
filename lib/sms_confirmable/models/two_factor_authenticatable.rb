@@ -1,13 +1,12 @@
-require 'two_factor_authentication/hooks/two_factor_authenticatable'
 module Devise
   module Models
-    module TwoFactorAuthenticatable
+    module SmsConfirmable
       extend ActiveSupport::Concern
 
       included do
-        before_create :generate_sms_confirmation_token, if: :confirmation_required?
+        before_create :generate_confirmation_token, if: :confirmation_required?
         after_create  :send_on_create_confirmation_instructions, if: :send_confirmation_notification?
-        before_update :postpone_phone_number_change_until_confirmation_and_regenerate_sms_confirmation_token, if: :postpone_phone_number_change?
+        before_update :postpone_phone_number_change_until_confirmation_and_regenerate_confirmation_token, if: :postpone_phone_number_change?
         after_update  :send_reconfirmation_instructions,  if: :reconfirmation_required?
       end
 
@@ -15,25 +14,21 @@ module Devise
         @bypass_confirmation_postpone = false
         @reconfirmation_required = false
         @skip_confirmation_notification = false
-        @raw_sms_confirmation_token = nil
+        @raw_confirmation_token = nil
         super
       end
 
       def self.required_fields(klass)
-        required_methods = [:phone_number, :sms_confirmation_token, :sms_confirmed_at, :sms_confirmation_sent_at]
+        required_methods = [:phone_number, :confirmation_token, :confirmed_at, :confirmation_sent_at]
         required_methods << :unconfirmed_phone_number if klass.reconfirmable
         required_methods
       end
 
-      def need_two_factor_authentication?(request)
-        true
-      end
-
-      def send_two_factor_authentication_code(code, options = {})
+      def send_sms_confirmation_code(code, options = {})
         raise NotImplementedError.new("No default implementation - please define in your class.")
       end
 
-      # Confirm a user by setting it's sms_confirmed_at to actual time. If the user
+      # Confirm a user by setting it's confirmed_at to actual time. If the user
       # is already confirmed, add an error to phone_number field. If the user is invalid
       # add errors
       def confirm!
@@ -44,8 +39,8 @@ module Devise
             return false
           end
 
-          self.sms_confirmation_token = nil
-          self.sms_confirmed_at = Time.now.utc
+          self.confirmation_token = nil
+          self.confirmed_at = Time.now.utc
 
           saved = if self.class.reconfirmable && unconfirmed_phone_number.present?
             skip_reconfirmation!
@@ -64,7 +59,7 @@ module Devise
       end
 
       def confirmed?
-        !!sms_confirmed_at
+        !!confirmed_at
       end
 
       def pending_reconfirmation?
@@ -73,12 +68,12 @@ module Devise
 
       # Send confirmation instructions by sms
       def send_confirmation_instructions
-        unless @raw_sms_confirmation_token
-          generate_sms_confirmation_token!
+        unless @raw_confirmation_token
+          generate_confirmation_token!
         end
 
         opts = pending_reconfirmation? ? { to: unconfirmed_phone_number } : { }
-        send_two_factor_authentication_code(@raw_sms_confirmation_token, opts)
+        send_sms_confirmation_code(@raw_confirmation_token, opts)
       end
 
       def send_reconfirmation_instructions
@@ -113,7 +108,7 @@ module Devise
       # If you don't want confirmation to be sent on create, neither a code
       # to be generated, call skip_confirmation!
       def skip_confirmation!
-        self.sms_confirmed_at = Time.now.utc
+        self.confirmed_at = Time.now.utc
       end
 
       # Skips sending the confirmation/reconfirmation notification sms after_create/after_update. Unlike
@@ -139,11 +134,11 @@ module Devise
         end
 
         def confirmation_period_valid?
-          self.class.allow_unconfirmed_access_for.nil? || (sms_confirmation_sent_at && sms_confirmation_sent_at.utc >= self.class.allow_unconfirmed_access_for.ago)
+          self.class.allow_unconfirmed_access_for.nil? || (confirmation_sent_at && confirmation_sent_at.utc >= self.class.allow_unconfirmed_access_for.ago)
         end
 
         def confirmation_period_expired?
-          self.class.confirm_within && (Time.now > self.sms_confirmation_sent_at + self.class.confirm_within )
+          self.class.confirm_within && (Time.now > self.confirmation_sent_at + self.class.confirm_within )
         end
 
         # Checks whether the record requires any confirmation.
@@ -158,22 +153,22 @@ module Devise
 
         # Generates a new random token for confirmation, and stores
         # the time this token is being generated
-        def generate_sms_confirmation_token
-          raw, enc = Devise.token_generator.generate(self.class, :sms_confirmation_token)
-          @raw_sms_confirmation_token   = raw
-          self.sms_confirmation_token   = enc
-          self.sms_confirmation_sent_at = Time.now.utc
+        def generate_confirmation_token
+          raw, enc = Devise.token_generator.generate(self.class, :confirmation_token)
+          @raw_confirmation_token   = raw
+          self.confirmation_token   = enc
+          self.confirmation_sent_at = Time.now.utc
         end
 
-        def generate_sms_confirmation_token!
-          generate_sms_confirmation_token && save(validate: false)
+        def generate_confirmation_token!
+          generate_confirmation_token && save(validate: false)
         end
 
-        def postpone_phone_number_change_until_confirmation_and_regenerate_sms_confirmation_token
+        def postpone_phone_number_change_until_confirmation_and_regenerate_confirmation_token
           @reconfirmation_required = true
           self.unconfirmed_phone_number = self.phone_number
           self.phone_number = self.phone_number_was
-          generate_sms_confirmation_token
+          generate_confirmation_token
         end
 
         def postpone_phone_number_change?
@@ -210,14 +205,14 @@ module Devise
         # Find a user by its confirmation token and try to confirm it.
         # If no user is found, returns a new user with an error.
         # If the user is already confirmed, create an error for the user
-        # Options must have the sms_confirmation_token
-        def confirm_by_token(sms_confirmation_token)
-          original_token     = sms_confirmation_token
-          sms_confirmation_token = Devise.token_generator.digest(self, :sms_confirmation_token, sms_confirmation_token)
+        # Options must have the confirmation_token
+        def confirm_by_token(confirmation_token)
+          original_token     = confirmation_token
+          confirmation_token = Devise.token_generator.digest(self, :confirmation_token, confirmation_token)
 
-          confirmable = find_or_initialize_with_error_by(:sms_confirmation_token, sms_confirmation_token)
+          confirmable = find_or_initialize_with_error_by(:confirmation_token, confirmation_token)
           confirmable.confirm! if confirmable.persisted?
-          confirmable.sms_confirmation_token = original_token
+          confirmable.confirmation_token = original_token
           confirmable
         end
 

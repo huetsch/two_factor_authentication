@@ -1,23 +1,21 @@
 # -*- encoding: utf-8 -*-
 $:.push File.expand_path("../lib", __FILE__)
-require "two_factor_authentication/version"
+require "sms_confirable/version"
 
 Gem::Specification.new do |s|
-  s.name        = "two_factor_authentication"
-  s.version     = TwoFactorAuthentication::VERSION.dup
-  s.authors     = ["Dmitrii Golub"]
-  s.email       = ["dmitrii.golub@gmail.com"]
-  s.homepage    = "https://github.com/Houdini/two_factor_authentication"
-  s.summary     = %q{Two factor authentication plugin for devise}
+  s.name        = "sms_confirmable"
+  s.version     = SmsConfirmable::VERSION.dup
+  s.authors     = ["Mark Huetsch"]
+  s.email       = ["markhuetsch@gmail.com"]
+  s.homepage    = "https://github.com/huetsch/sms_confirmable"
+  s.summary     = %q{SMS confirmable plugin for devise}
   s.description = <<-EOF
     ### Features ###
-    * control sms code pattern
-    * configure max login attempts
-    * per user level control if he really need two factor authentication
+    * use sms instead of email to confirm a resource
     * your own sms logic
   EOF
 
-  s.rubyforge_project = "two_factor_authentication"
+  s.rubyforge_project = "sms_confirmable"
 
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
