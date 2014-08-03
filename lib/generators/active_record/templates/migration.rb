@@ -1,15 +1,10 @@
 class TwoFactorAuthenticationAddTo<%= table_name.camelize %> < ActiveRecord::Migration
-  def up
+  def change
     change_table :<%= table_name %> do |t|
-      t.string   :otp_secret_key
-      t.integer  :second_factor_attempts_count, :default => 0
+      t.string   :unconfirmed_phone_number
+      t.string   :confirmation_token
+      t.datetime :sms_confirmed_at
+      t.datetime :sms_confirmation_sent_at
     end
-
-    add_index :<%= table_name %>, :otp_secret_key, :unique => true
-  end
-
-  def down
-    remove_column :<%= table_name %>, :otp_secret_key
-    remove_column :<%= table_name %>, :second_factor_attempts_count
   end
 end
